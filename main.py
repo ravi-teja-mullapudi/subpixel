@@ -1,11 +1,15 @@
+from __future__ import print_function
+
 import os
 import scipy.misc
 import numpy as np
 
 from model import DCGAN
 from utils import pp, visualize, to_json
+from tensorflow.python.client import timeline
 
 import tensorflow as tf
+import time
 
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
@@ -42,16 +46,27 @@ def main(_):
             dcgan.train(FLAGS)
         else:
             dcgan.load(FLAGS.checkpoint_dir)
+            input_shape = [FLAGS.batch_size, 32, 32, 3]
+            input_vals = np.random.rand(*input_shape).astype(np.float32)
+
+            run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+            run_metadata = tf.RunMetadata()
+
+            for r in xrange(0, 5):
+                start_time = time.time() * 1000
+                sess.run([dcgan.G], feed_dict = {dcgan.inputs : input_vals},
+                          options = run_options, run_metadata = run_metadata)
+                end_time = time.time() * 1000
+                print(end_time - start_time)
+                # Create the Timeline object, and write it to a json
+                tl = timeline.Timeline(run_metadata.step_stats)
+                ctf = tl.generate_chrome_trace_format()
+                with open('timeline' + str(r) + '.json', 'w') as f:
+                    f.write(ctf)
 
         if FLAGS.visualize:
-            to_json("./web/js/layers.js", [dcgan.h0_w, dcgan.h0_b, dcgan.g_bn0],
-                                          [dcgan.h1_w, dcgan.h1_b, dcgan.g_bn1],
-                                          [dcgan.h2_w, dcgan.h2_b, dcgan.g_bn2],
-                                          [dcgan.h3_w, dcgan.h3_b, dcgan.g_bn3],
-                                          [dcgan.h4_w, dcgan.h4_b, None])
-
             # Below is codes for visualization
-            OPTION = 2
+            OPTION = 0
             visualize(sess, dcgan, FLAGS, OPTION)
 
 if __name__ == '__main__':
